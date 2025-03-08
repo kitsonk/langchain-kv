@@ -58,6 +58,7 @@ export class DenoKvByteStore extends BaseStore<string, Uint8Array> {
     const store = await this.#storePromise;
     const results: (Uint8Array | undefined)[] = [];
     for (const key of keys) {
+      console.log("mget key:", key);
       const value = await store.get<Uint8Array>([...this.#prefix, key]);
       results.push(value.value ?? undefined);
     }
