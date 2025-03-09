@@ -1,3 +1,5 @@
+import { batchedAtomic } from "@kitsonk/kv-toolbox/batched_atomic";
+import * as blob from "@kitsonk/kv-toolbox/blob";
 import { query } from "@kitsonk/kv-toolbox/query";
 import type { RunnableConfig } from "@langchain/core/runnables";
 import {
@@ -45,16 +47,19 @@ interface StoredCheckpoint {
   checkpoint_id: string;
   parent_checkpoint_id: string;
   type: string;
-  checkpoint: Uint8Array;
-  metadata: Uint8Array;
 }
 
 interface StoredWrite {
   taskId: string;
   channel: string;
   type: string;
-  value: Uint8Array;
 }
+
+const DEFAULT_PREFIX: Deno.KvKey = ["__langchain_checkpoint__"];
+const DEFAULT_WRITES_PREFIX: Deno.KvKey = ["__langchain_checkpoint_writes__"];
+const CHECKPOINT_KEYPART: Deno.KvKeyPart = "checkpoint";
+const METADATA_KEYPART: Deno.KvKeyPart = "metadata";
+const VALUE_KEYPART: Deno.KvKeyPart = "value";
 
 export class DenoKvSaver extends BaseCheckpointSaver {
   #prefix: Deno.KvKey;
@@ -66,8 +71,8 @@ export class DenoKvSaver extends BaseCheckpointSaver {
     super(serde);
     const {
       store,
-      prefix = ["__langchain_checkpoint__"],
-      writesPrefix = ["__langchain_checkpoint_writes__"],
+      prefix = DEFAULT_PREFIX,
+      writesPrefix = DEFAULT_WRITES_PREFIX,
     } = params;
     this.#storePromise = (!store || typeof store === "string")
       ? Deno.openKv(store)
@@ -101,13 +106,28 @@ export class DenoKvSaver extends BaseCheckpointSaver {
       return undefined;
     }
     const doc = value.value;
+    const maybeSerializedCheckpoint = await blob.get(store, [
+      ...value.key,
+      CHECKPOINT_KEYPART,
+    ]);
+    const maybeSerializedMetadata = await blob.get(store, [
+      ...value.key,
+      METADATA_KEYPART,
+    ]);
+    if (!maybeSerializedCheckpoint.value || !maybeSerializedMetadata.value) {
+      return undefined;
+    }
+    const serializedCheckpoint = maybeSerializedCheckpoint.value;
+    const serializedMetadata = maybeSerializedMetadata.value;
     const configurable = {
       thread_id,
       checkpoint_ns,
       checkpoint_id: doc.checkpoint_id,
     };
-    const checkpoint =
-      (await this.serde.loadsTyped(doc.type, doc.checkpoint)) as Checkpoint;
+    const checkpoint = (await this.serde.loadsTyped(
+      doc.type,
+      serializedCheckpoint,
+    )) as Checkpoint;
     const writesPrefix = [
       ...this.#writesPrefix,
       thread_id,
@@ -116,12 +136,20 @@ export class DenoKvSaver extends BaseCheckpointSaver {
     ];
     const pendingWrites: CheckpointPendingWrite[] = [];
     for await (
-      const { value } of store.list<StoredWrite>({ prefix: writesPrefix })
+      const { key, value } of store.list<StoredWrite>({ prefix: writesPrefix })
     ) {
+      const maybeSerializedValue = await blob.get(store, [
+        ...key,
+        VALUE_KEYPART,
+      ]);
+      if (!maybeSerializedValue.value) {
+        continue;
+      }
+      const serializedValue = maybeSerializedValue.value;
       pendingWrites.push([
         value.taskId,
         value.channel,
-        this.serde.loadsTyped(value.type, value.value),
+        this.serde.loadsTyped(value.type, serializedValue),
       ]);
     }
     const parentConfig = doc.parent_checkpoint_id != null
@@ -137,7 +165,7 @@ export class DenoKvSaver extends BaseCheckpointSaver {
       config: { configurable },
       checkpoint,
       pendingWrites,
-      metadata: (await this.serde.loadsTyped(doc.type, doc.metadata)),
+      metadata: (await this.serde.loadsTyped(doc.type, serializedMetadata)),
       parentConfig,
     };
   }
@@ -160,10 +188,18 @@ export class DenoKvSaver extends BaseCheckpointSaver {
       q.where("checkpoint_id", "<", before.configurable?.checkpoint_id);
     }
     let count = 0;
-    for await (const { value } of q.get()) {
+    for await (const { key, value } of q.get()) {
+      const maybeSerializedMetadata = await blob.get(store, [
+        ...key,
+        METADATA_KEYPART,
+      ]);
+      if (!maybeSerializedMetadata.value) {
+        continue;
+      }
+      const serializedMetadata = maybeSerializedMetadata.value;
       const metadata: CheckpointMetadata = await this.serde.loadsTyped(
         value.type,
-        value.metadata,
+        serializedMetadata,
       );
       if (filter) {
         let match = true;
@@ -177,9 +213,17 @@ export class DenoKvSaver extends BaseCheckpointSaver {
           continue;
         }
       }
+      const maybeSerializedCheckpoint = await blob.get(store, [
+        ...key,
+        CHECKPOINT_KEYPART,
+      ]);
+      if (!maybeSerializedCheckpoint.value) {
+        continue;
+      }
+      const serializedCheckpoint = maybeSerializedCheckpoint.value;
       const checkpoint: Checkpoint = await this.serde.loadsTyped(
         value.type,
-        value.checkpoint,
+        serializedCheckpoint,
       );
       const parentConfig = value.parent_checkpoint_id
         ? {
@@ -239,16 +283,19 @@ export class DenoKvSaver extends BaseCheckpointSaver {
       checkpoint_id,
       parent_checkpoint_id: config.configurable?.checkpoint_id,
       type: checkpointType,
-      checkpoint: serializedCheckpoint,
-      metadata: serializedMetadata,
     } satisfies StoredCheckpoint;
     const store = await this.#storePromise;
-    const res = await store.set(
-      [...this.#prefix, thread_id, checkpoint_ns, checkpoint_id],
-      value,
-      { expireIn: this.#expireIn },
-    );
-    if (!res.ok) {
+    const key = [...this.#prefix, thread_id, checkpoint_ns, checkpoint_id];
+    const res = await batchedAtomic(store)
+      .set(key, value, { expireIn: this.#expireIn })
+      .setBlob([...key, CHECKPOINT_KEYPART], serializedCheckpoint, {
+        expireIn: this.#expireIn,
+      })
+      .setBlob([...key, METADATA_KEYPART], serializedMetadata, {
+        expireIn: this.#expireIn,
+      })
+      .commit();
+    if (!res.every((r) => r.ok)) {
       throw new Error(`Failed to put checkpoint ${checkpoint_id}`);
     }
     return {
@@ -276,7 +323,7 @@ export class DenoKvSaver extends BaseCheckpointSaver {
       );
     }
     const store = await this.#storePromise;
-    const transaction = store.atomic();
+    const transaction = batchedAtomic(store);
     for (const [idx, [channel, value]] of Object.entries(writes)) {
       const [type, serializedValue] = this.serde.dumpsTyped(value);
       const key = [
@@ -287,12 +334,14 @@ export class DenoKvSaver extends BaseCheckpointSaver {
         taskId,
         idx,
       ];
-      transaction.set(key, {
-        taskId,
-        channel,
-        type,
-        value: serializedValue,
-      }, { expireIn: this.#expireIn });
+      const writeValue: StoredWrite = { taskId, channel, type };
+      transaction
+        .set(key, writeValue, { expireIn: this.#expireIn })
+        .setBlob(
+          [...key, VALUE_KEYPART],
+          serializedValue,
+          { expireIn: this.#expireIn },
+        );
     }
     await transaction.commit();
   }
