@@ -17,6 +17,7 @@
   },
   "publish": {
     "exclude": [
+      "_*.ts",
       "*.test.ts",
       ".github",
       ".vscode"

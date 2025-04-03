@@ -1,3 +1,6 @@
+import "./_test_globals.ts"; // This is needed to provide Jest globals in Deno
+
+import { validate } from "npm:@langchain/langgraph-checkpoint-validation@^0.0.2";
 import { assert } from "jsr:@std/assert@~1/assert";
 import { assertEquals } from "jsr:@std/assert@~1/equals";
 
@@ -65,5 +68,18 @@ Deno.test({
     assert(actual);
     console.log(actual);
     await saver.end();
+  },
+});
+
+// These uses the checkpoint validation library which setups a suite of tests
+// that validate the implementation of the Checkpoint interface.
+
+validate({
+  checkpointerName: "@kitsonk/langchain-kv/checkpoint/DenoKvSaver",
+  createCheckpointer() {
+    return new DenoKvSaver({ store: ":memory:" });
+  },
+  destroyCheckpointer(checkpointer) {
+    return checkpointer.end();
   },
 });

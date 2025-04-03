@@ -1,3 +1,9 @@
+/**
+ * Implementation of a LangChain cache using a Deno KV store.
+ *
+ * @module
+ */
+
 import {
   BaseCache,
   deserializeStoredGeneration,
