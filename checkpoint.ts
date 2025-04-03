@@ -67,6 +67,39 @@ export class DenoKvSaver extends BaseCheckpointSaver {
   #writesPrefix: Deno.KvKey;
   #expireIn?: number;
 
+  async #getPendingWrites(
+    thread_id: Deno.KvKeyPart,
+    checkpoint_ns: Deno.KvKeyPart,
+    checkpoint_id: Deno.KvKeyPart,
+  ): Promise<CheckpointPendingWrite[]> {
+    const store = await this.#storePromise;
+    const writesPrefix: Deno.KvKey = [
+      ...this.#writesPrefix,
+      thread_id,
+      checkpoint_ns,
+      checkpoint_id,
+    ];
+    const pendingWrites: CheckpointPendingWrite[] = [];
+    for await (
+      const { key, value } of store.list<StoredWrite>({ prefix: writesPrefix })
+    ) {
+      const maybeSerializedValue = await blob.get(store, [
+        ...key,
+        VALUE_KEYPART,
+      ]);
+      if (!maybeSerializedValue.value) {
+        continue;
+      }
+      const serializedValue = maybeSerializedValue.value;
+      pendingWrites.push([
+        value.taskId,
+        value.channel,
+        await this.serde.loadsTyped(value.type, serializedValue),
+      ]);
+    }
+    return pendingWrites;
+  }
+
   constructor(params: DenoKvSaverParams = {}, serde?: SerializerProtocol) {
     super(serde);
     const {
@@ -97,21 +130,17 @@ export class DenoKvSaver extends BaseCheckpointSaver {
       ? [...this.#prefix, thread_id, checkpoint_ns, checkpoint_id]
       : [...this.#prefix, thread_id, checkpoint_ns];
     const store = await this.#storePromise;
-    const iterator = store.list<StoredCheckpoint>({ prefix }, {
-      limit: 1,
-      reverse: true,
-    });
-    const { value } = await iterator.next();
-    if (!value) {
+    const maybeEntry = await store.get<StoredCheckpoint>(prefix);
+    if (!maybeEntry.value) {
       return undefined;
     }
-    const doc = value.value;
+    const doc = maybeEntry.value;
     const maybeSerializedCheckpoint = await blob.get(store, [
-      ...value.key,
+      ...maybeEntry.key,
       CHECKPOINT_KEYPART,
     ]);
     const maybeSerializedMetadata = await blob.get(store, [
-      ...value.key,
+      ...maybeEntry.key,
       METADATA_KEYPART,
     ]);
     if (!maybeSerializedCheckpoint.value || !maybeSerializedMetadata.value) {
@@ -128,30 +157,11 @@ export class DenoKvSaver extends BaseCheckpointSaver {
       doc.type,
       serializedCheckpoint,
     )) as Checkpoint;
-    const writesPrefix = [
-      ...this.#writesPrefix,
+    const pendingWrites = await this.#getPendingWrites(
       thread_id,
       checkpoint_ns,
       doc.checkpoint_id,
-    ];
-    const pendingWrites: CheckpointPendingWrite[] = [];
-    for await (
-      const { key, value } of store.list<StoredWrite>({ prefix: writesPrefix })
-    ) {
-      const maybeSerializedValue = await blob.get(store, [
-        ...key,
-        VALUE_KEYPART,
-      ]);
-      if (!maybeSerializedValue.value) {
-        continue;
-      }
-      const serializedValue = maybeSerializedValue.value;
-      pendingWrites.push([
-        value.taskId,
-        value.channel,
-        this.serde.loadsTyped(value.type, serializedValue),
-      ]);
-    }
+    );
     const parentConfig = doc.parent_checkpoint_id != null
       ? {
         configurable: {
@@ -225,6 +235,11 @@ export class DenoKvSaver extends BaseCheckpointSaver {
         value.type,
         serializedCheckpoint,
       );
+      const pendingWrites = await this.#getPendingWrites(
+        value.thread_id,
+        value.checkpoint_ns,
+        value.checkpoint_id,
+      );
       const parentConfig = value.parent_checkpoint_id
         ? {
           configurable: {
@@ -245,6 +260,7 @@ export class DenoKvSaver extends BaseCheckpointSaver {
         },
         checkpoint,
         metadata,
+        pendingWrites,
         parentConfig,
       };
       if (limit && count >= limit) {

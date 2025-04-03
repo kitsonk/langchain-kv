@@ -1,3 +1,4 @@
 cov.lcov
 cov/
 junit.xml
+node_modules/
