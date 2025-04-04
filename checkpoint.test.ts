@@ -26,14 +26,9 @@ Deno.test({
       writes: null,
       parents: {},
     }, {});
-    const actual = [];
-    for await (
-      const checkpoint of saver.list({
-        configurable: { thread_id: "test" },
-      })
-    ) {
-      actual.push(checkpoint);
-    }
+    const actual = await Array.fromAsync(
+      saver.list({ configurable: { thread_id: "test" } }),
+    );
     assertEquals(actual.length, 1);
     await saver.end();
   },
@@ -66,7 +61,6 @@ Deno.test({
     );
     const actual = await saver.getTuple(config);
     assert(actual);
-    console.log(actual);
     await saver.end();
   },
 });

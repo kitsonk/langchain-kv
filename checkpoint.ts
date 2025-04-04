@@ -100,6 +100,31 @@ export class DenoKvSaver extends BaseCheckpointSaver {
     return pendingWrites;
   }
 
+  async #getStoredCheckpointEntry(
+    threadId: Deno.KvKeyPart,
+    checkpointNs: Deno.KvKeyPart,
+    checkpointId?: Deno.KvKeyPart,
+  ): Promise<Deno.KvEntry<StoredCheckpoint> | undefined> {
+    const store = await this.#storePromise;
+    if (checkpointId) {
+      const key = [...this.#prefix, threadId, checkpointNs, checkpointId];
+      const maybeEntry = await store.get<StoredCheckpoint>(key);
+      if (maybeEntry.value) {
+        return maybeEntry;
+      } else {
+        return undefined;
+      }
+    }
+    const prefix = [...this.#prefix, threadId, checkpointNs];
+    const list = store.list<StoredCheckpoint>({ prefix }, { reverse: true });
+    for await (const entry of list) {
+      if (entry.key.length === prefix.length + 1) {
+        return entry;
+      }
+    }
+    return undefined;
+  }
+
   constructor(params: DenoKvSaverParams = {}, serde?: SerializerProtocol) {
     super(serde);
     const {
@@ -126,21 +151,22 @@ export class DenoKvSaver extends BaseCheckpointSaver {
     if (!thread_id) {
       return undefined;
     }
-    const prefix = checkpoint_id
-      ? [...this.#prefix, thread_id, checkpoint_ns, checkpoint_id]
-      : [...this.#prefix, thread_id, checkpoint_ns];
-    const store = await this.#storePromise;
-    const maybeEntry = await store.get<StoredCheckpoint>(prefix);
-    if (!maybeEntry.value) {
+    const entry = await this.#getStoredCheckpointEntry(
+      thread_id,
+      checkpoint_ns,
+      checkpoint_id,
+    );
+    if (!entry) {
       return undefined;
     }
-    const doc = maybeEntry.value;
+    const doc = entry.value;
+    const store = await this.#storePromise;
     const maybeSerializedCheckpoint = await blob.get(store, [
-      ...maybeEntry.key,
+      ...entry.key,
       CHECKPOINT_KEYPART,
     ]);
     const maybeSerializedMetadata = await blob.get(store, [
-      ...maybeEntry.key,
+      ...entry.key,
       METADATA_KEYPART,
     ]);
     if (!maybeSerializedCheckpoint.value || !maybeSerializedMetadata.value) {
@@ -188,7 +214,7 @@ export class DenoKvSaver extends BaseCheckpointSaver {
     const prefix = [...this.#prefix];
     if (config.configurable?.thread_id) {
       prefix.push(config.configurable.thread_id);
-      if (config.configurable.checkpoint_ns) {
+      if (config.configurable.checkpoint_ns != null) {
         prefix.push(config.configurable.checkpoint_ns);
       }
     }
@@ -199,6 +225,12 @@ export class DenoKvSaver extends BaseCheckpointSaver {
     }
     let count = 0;
     for await (const { key, value } of q.get()) {
+      if (
+        config.configurable?.checkpoint_ns != null &&
+        value.checkpoint_ns !== config.configurable.checkpoint_ns
+      ) {
+        continue;
+      }
       const maybeSerializedMetadata = await blob.get(store, [
         ...key,
         METADATA_KEYPART,
@@ -333,9 +365,9 @@ export class DenoKvSaver extends BaseCheckpointSaver {
       checkpoint_ns = "",
       checkpoint_id,
     } = config.configurable ?? {};
-    if (!thread_id || !checkpoint_id) {
+    if (thread_id == null || checkpoint_id == null) {
       throw new Error(
-        `The provided config must contain a configurable field with a "thread_id" or "checkpoint_id" field.`,
+        `The provided config must contain a configurable field with a "thread_id" and "checkpoint_id" field.`,
       );
     }
     const store = await this.#storePromise;
