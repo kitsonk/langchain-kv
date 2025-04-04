@@ -66,7 +66,7 @@ Deno.test({
 });
 
 // These uses the checkpoint validation library which setups a suite of tests
-// that validate the implementation of the Checkpoint interface.
+// that validate the implementation of the Checkpoint interface
 
 validate({
   checkpointerName: "@kitsonk/langchain-kv/checkpoint/DenoKvSaver",

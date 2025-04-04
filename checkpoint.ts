@@ -1,3 +1,10 @@
+/**
+ * Provides an implementation of Langchain's Checkpoint saver interface, storing
+ * checkpoints in a Deno.Kv store.
+ *
+ * @module
+ */
+
 import { batchedAtomic } from "@kitsonk/kv-toolbox/batched_atomic";
 import * as blob from "@kitsonk/kv-toolbox/blob";
 import { query } from "@kitsonk/kv-toolbox/query";
@@ -14,7 +21,10 @@ import {
   type SerializerProtocol,
 } from "@langchain/langgraph-checkpoint";
 
-interface DenoKvSaverParams {
+/**
+ * Options for the {@linkcode DenoKvSaver}.
+ */
+export interface DenoKvSaverParams {
   /**
    * `Deno.Kv` instance or path to `Deno.Kv` store. Defaults to the local
    * instance.
@@ -61,6 +71,31 @@ const CHECKPOINT_KEYPART: Deno.KvKeyPart = "checkpoint";
 const METADATA_KEYPART: Deno.KvKeyPart = "metadata";
 const VALUE_KEYPART: Deno.KvKeyPart = "value";
 
+/**
+ * A checkpoint saver implementation using {@linkcode Deno.Kv}.
+ *
+ * In addition to the standard checkpointing functionality, this implementation
+ * also provides the `.end()` method to close the underlying `Deno.Kv` store.
+ *
+ * @example
+ *
+ * ```ts
+ * import { DenoKvSaver } from "@kitsonk/langchain-kv/checkpoint";
+ * import { createReactAgent } from "npm:@langchain/langgraph/prebuilt";
+ * import { ChatDeepSeek } from "npm:@langchain/deepseek";
+ *
+ * const llm = new ChatDeepSeek({
+ *   model: "deepseek-chat",
+ * });
+ *
+ * const agent = createReactAgent({
+ *   // @ts-ignore assignment issues
+ *   llm,
+ *   tools: [],
+ *   checkpoint: new DenoKvSaver({ store: ":memory:" })
+ * });
+ * ```
+ */
 export class DenoKvSaver extends BaseCheckpointSaver {
   #prefix: Deno.KvKey;
   #storePromise: Promise<Deno.Kv>;
@@ -140,6 +175,9 @@ export class DenoKvSaver extends BaseCheckpointSaver {
     this.#expireIn = params.expireIn;
   }
 
+  /**
+   * Get the checkpoint tuple for the given config.
+   */
   override async getTuple(
     config: RunnableConfig,
   ): Promise<CheckpointTuple | undefined> {
@@ -206,6 +244,9 @@ export class DenoKvSaver extends BaseCheckpointSaver {
     };
   }
 
+  /**
+   * List all checkpoints in the store filtered by the given options.
+   */
   override async *list(
     config: RunnableConfig,
     options: CheckpointListOptions = {},
@@ -301,6 +342,9 @@ export class DenoKvSaver extends BaseCheckpointSaver {
     }
   }
 
+  /**
+   * Store a checkpoint.
+   */
   override async put(
     config: RunnableConfig,
     checkpoint: Checkpoint,
@@ -355,6 +399,9 @@ export class DenoKvSaver extends BaseCheckpointSaver {
     };
   }
 
+  /**
+   * Store pending writes for a checkpoint.
+   */
   override async putWrites(
     config: RunnableConfig,
     writes: PendingWrite[],
