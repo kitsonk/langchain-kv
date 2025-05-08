@@ -1,6 +1,6 @@
 {
   "name": "@kitsonk/langchain-kv",
-  "version": "0.1.4",
+  "version": "0.2.0",
   "exports": {
     ".": "./mod.ts",
     "./cache": "./cache.ts",
