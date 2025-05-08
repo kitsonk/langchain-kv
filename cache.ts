@@ -4,6 +4,7 @@
  * @module
  */
 
+import { get, set } from "@kitsonk/kv-toolbox/blob";
 import {
   BaseCache,
   deserializeStoredGeneration,
@@ -12,6 +13,19 @@ import {
 } from "@langchain/core/caches";
 import type { StoredGeneration } from "@langchain/core/messages";
 import type { Generation } from "@langchain/core/outputs";
+
+const DEFAULT_PREFIX: Deno.KvKey = ["__langchain_cache__"];
+
+const encoder = new TextEncoder();
+const decoder = new TextDecoder();
+
+function asBytes(value: StoredGeneration): Uint8Array {
+  return encoder.encode(JSON.stringify(value));
+}
+
+function fromBytes(value: Uint8Array): StoredGeneration {
+  return JSON.parse(decoder.decode(value));
+}
 
 interface DenoKvCacheOptions {
   /**
@@ -45,7 +59,7 @@ export class DenoKvCache extends BaseCache {
 
   constructor(options: DenoKvCacheOptions = {}) {
     super();
-    const { store, prefix = ["__langchain_cache__"] } = options;
+    const { store, prefix = DEFAULT_PREFIX } = options;
     this.#storePromise = (!store || typeof store === "string")
       ? Deno.openKv(store)
       : Promise.resolve(store);
@@ -60,14 +74,14 @@ export class DenoKvCache extends BaseCache {
     let idx = 0;
     let key = getCacheKey(prompt, llmKey, String(idx));
     const store = await this.#storePromise;
-    let value = await store.get<StoredGeneration>([...this.#prefix, key]);
+    let value = await get(store, [...this.#prefix, key]);
     const generations: Generation[] = [];
 
     while (value.value) {
-      generations.push(deserializeStoredGeneration(value.value));
+      generations.push(deserializeStoredGeneration(fromBytes(value.value)));
       idx += 1;
       key = getCacheKey(prompt, llmKey, String(idx));
-      value = await store.get([...this.#prefix, key]);
+      value = await get(store, [...this.#prefix, key]);
     }
 
     return generations.length > 0 ? generations : null;
@@ -77,10 +91,13 @@ export class DenoKvCache extends BaseCache {
     const store = await this.#storePromise;
     for (let i = 0; i < value.length; i += 1) {
       const key = getCacheKey(prompt, llmKey, String(i));
-      await store.set(
+      await set(
+        store,
         [...this.#prefix, key],
-        serializeGeneration(value[i]),
-        { expireIn: this.#expireIn },
+        asBytes(serializeGeneration(value[i])),
+        {
+          expireIn: this.#expireIn,
+        },
       );
     }
   }

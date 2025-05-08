@@ -1,5 +1,9 @@
+import { get, list, remove, set } from "@kitsonk/kv-toolbox/blob";
 import { BaseStore } from "@langchain/core/stores";
 
+/**
+ * Options for the {@linkcode DenoKvByteStore} class.
+ */
 interface DenoKvStoreFields {
   /**
    * `Deno.Kv` instance or path to `Deno.Kv` store. Defaults to the local
@@ -62,7 +66,7 @@ export class DenoKvByteStore extends BaseStore<string, Uint8Array> {
         results.push(undefined);
         continue;
       }
-      const value = await store.get<Uint8Array>([...this.#prefix, key]);
+      const value = await get(store, [...this.#prefix, key]);
       results.push(value.value ?? undefined);
     }
     return results;
@@ -71,8 +75,9 @@ export class DenoKvByteStore extends BaseStore<string, Uint8Array> {
   override async mset(keyValuePairs: [string, Uint8Array][]): Promise<void> {
     const store = await this.#storePromise;
     for (const [key, value] of keyValuePairs) {
-      const res = await store
-        .set([...this.#prefix, key], value, { expireIn: this.#expireIn });
+      const res = await set(store, [...this.#prefix, key], value, {
+        expireIn: this.#expireIn,
+      });
       if (!res.ok) {
         throw new Error(`Failed to set key ${key}`);
       }
@@ -82,17 +87,16 @@ export class DenoKvByteStore extends BaseStore<string, Uint8Array> {
   override async mdelete(keys: string[]): Promise<void> {
     const store = await this.#storePromise;
     for (const key of keys) {
-      await store.delete([...this.#prefix, key]);
+      await remove(store, [...this.#prefix, key]);
     }
   }
 
   override async *yieldKeys(prefix?: string): AsyncGenerator<string> {
     const store = await this.#storePromise;
     for await (
-      const { key } of store.list(
-        { prefix: [...this.#prefix] },
-        { batchSize: this.#batchSize },
-      )
+      const { key } of list(store, { prefix: [...this.#prefix] }, {
+        batchSize: this.#batchSize,
+      })
     ) {
       const lastKeyPart = key[key.length - 1];
       if (
