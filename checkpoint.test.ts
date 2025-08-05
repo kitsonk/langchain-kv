@@ -1,6 +1,6 @@
 import "./_test_globals.ts"; // This is needed to provide Jest globals in Deno
 
-import { validate } from "npm:@langchain/langgraph-checkpoint-validation@^0.0.2";
+import { validate } from "npm:@langchain/langgraph-checkpoint-validation@^0.1.0";
 import { assert } from "jsr:@std/assert@~1/assert";
 import { assertEquals } from "jsr:@std/assert@~1/equals";
 
@@ -19,11 +19,9 @@ Deno.test({
       channel_values: {},
       channel_versions: {},
       versions_seen: {},
-      pending_sends: [],
     }, {
       source: "input",
       step: -1,
-      writes: null,
       parents: {},
     }, {});
     const actual = await Array.fromAsync(
@@ -47,11 +45,9 @@ Deno.test({
       channel_values: {},
       channel_versions: {},
       versions_seen: {},
-      pending_sends: [],
     }, {
       source: "input",
       step: -1,
-      writes: null,
       parents: {},
     }, {});
     saver.putWrites(

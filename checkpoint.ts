@@ -167,9 +167,7 @@ export class DenoKvSaver extends BaseCheckpointSaver {
       prefix = DEFAULT_PREFIX,
       writesPrefix = DEFAULT_WRITES_PREFIX,
     } = params;
-    this.#storePromise = (!store || typeof store === "string")
-      ? Deno.openKv(store)
-      : Promise.resolve(store);
+    this.#storePromise = (!store || typeof store === "string") ? Deno.openKv(store) : Promise.resolve(store);
     this.#prefix = prefix;
     this.#writesPrefix = writesPrefix;
     this.#expireIn = params.expireIn;
@@ -178,9 +176,7 @@ export class DenoKvSaver extends BaseCheckpointSaver {
   /**
    * Get the checkpoint tuple for the given config.
    */
-  override async getTuple(
-    config: RunnableConfig,
-  ): Promise<CheckpointTuple | undefined> {
+  async getTuple(config: RunnableConfig): Promise<CheckpointTuple | undefined> {
     const {
       thread_id,
       checkpoint_ns = "",
@@ -247,10 +243,7 @@ export class DenoKvSaver extends BaseCheckpointSaver {
   /**
    * List all checkpoints in the store filtered by the given options.
    */
-  override async *list(
-    config: RunnableConfig,
-    options: CheckpointListOptions = {},
-  ): AsyncGenerator<CheckpointTuple> {
+  async *list(config: RunnableConfig, options: CheckpointListOptions = {}): AsyncGenerator<CheckpointTuple> {
     const { limit, before, filter } = options;
     const prefix = [...this.#prefix];
     if (config.configurable?.thread_id) {
@@ -344,8 +337,10 @@ export class DenoKvSaver extends BaseCheckpointSaver {
 
   /**
    * Store a checkpoint.
+   *
+   * @TODO This method should be updated to handle the `newVersions` parameter
    */
-  override async put(
+  async put(
     config: RunnableConfig,
     checkpoint: Checkpoint,
     metadata: CheckpointMetadata,
@@ -364,8 +359,8 @@ export class DenoKvSaver extends BaseCheckpointSaver {
     const [
       checkpointType,
       serializedCheckpoint,
-    ] = this.serde.dumpsTyped(checkpoint);
-    const [metadataType, serializedMetadata] = this.serde.dumpsTyped(metadata);
+    ] = await this.serde.dumpsTyped(checkpoint);
+    const [metadataType, serializedMetadata] = await this.serde.dumpsTyped(metadata);
     if (checkpointType !== metadataType) {
       throw new Error("Mismatched types for checkpoint and metadata");
     }
@@ -402,11 +397,7 @@ export class DenoKvSaver extends BaseCheckpointSaver {
   /**
    * Store pending writes for a checkpoint.
    */
-  override async putWrites(
-    config: RunnableConfig,
-    writes: PendingWrite[],
-    taskId: string,
-  ): Promise<void> {
+  async putWrites(config: RunnableConfig, writes: PendingWrite[], taskId: string): Promise<void> {
     const {
       thread_id,
       checkpoint_ns = "",
@@ -420,7 +411,7 @@ export class DenoKvSaver extends BaseCheckpointSaver {
     const store = await this.#storePromise;
     const transaction = batchedAtomic(store);
     for (const [idx, [channel, value]] of Object.entries(writes)) {
-      const [type, serializedValue] = this.serde.dumpsTyped(value);
+      const [type, serializedValue] = await this.serde.dumpsTyped(value);
       const key = [
         ...this.#writesPrefix,
         thread_id,
@@ -437,6 +428,23 @@ export class DenoKvSaver extends BaseCheckpointSaver {
           serializedValue,
           { expireIn: this.#expireIn },
         );
+    }
+    await transaction.commit();
+  }
+
+  /**
+   * Delete all checkpoints and writes associated with a specific thread ID.
+   */
+  async deleteThread(threadId: string): Promise<void> {
+    const store = await this.#storePromise;
+    const transaction = batchedAtomic(store);
+    const prefix = [...this.#prefix, threadId];
+    for await (const { key } of store.list({ prefix })) {
+      transaction.delete(key);
+    }
+    const writesPrefix = [...this.#writesPrefix, threadId];
+    for await (const { key } of store.list({ prefix: writesPrefix })) {
+      transaction.delete(key);
     }
     await transaction.commit();
   }

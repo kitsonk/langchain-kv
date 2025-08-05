@@ -5,16 +5,9 @@
  * @module
  */
 
-import {
-  afterAll,
-  afterEach,
-  beforeAll,
-  beforeEach,
-  describe,
-  it,
-} from "jsr:@std/testing@1.0.10/bdd";
-import { expect } from "jsr:@std/expect@^1.0.14";
-import { bind as bindEach } from "npm:jest-each@^29.7.0";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, it } from "jsr:@std/testing@^1.0.15/bdd";
+import { expect } from "jsr:@std/expect@^1.0.16";
+import { bind as bindEach } from "npm:jest-each@^30.0.5";
 
 function getDescriptor(value: unknown) {
   return {

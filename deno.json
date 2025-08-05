@@ -10,10 +10,10 @@
     "./store": "./store.ts"
   },
   "imports": {
-    "@kitsonk/kv-toolbox": "jsr:@kitsonk/kv-toolbox@^0.28.0",
+    "@kitsonk/kv-toolbox": "jsr:@kitsonk/kv-toolbox@^0.30.0",
     "@langchain/core": "npm:@langchain/core@^0.3.55",
-    "@langchain/langgraph-checkpoint": "npm:@langchain/langgraph-checkpoint@^0.0.17",
-    "zod": "npm:zod@^3.24.4"
+    "@langchain/langgraph-checkpoint": "npm:@langchain/langgraph-checkpoint@^0.1.0",
+    "zod": "npm:zod@^4.0.14"
   },
   "publish": {
     "exclude": [
@@ -23,11 +23,15 @@
       ".vscode"
     ]
   },
+  "fmt": {
+    "lineWidth": 120
+  },
   "tasks": {
     "check": "deno fmt --check && deno lint && deno publish --dry-run --allow-dirty && deno check --doc *.ts",
     "coverage": "deno coverage --lcov --output=cov.lcov ./cov",
-    "test": "deno test --allow-read --allow-write --unstable-kv --parallel",
-    "test:ci": "deno test --allow-read --allow-write --unstable-kv --junit-path=junit.xml --coverage=./cov --parallel"
+    "test": "deno test --allow-read --allow-write --allow-env --unstable-kv --parallel",
+    "test:ci": "deno test --allow-read --allow-write --allow-env --unstable-kv --junit-path=junit.xml --coverage=./cov --parallel"
   },
-  "lock": false
+  "lock": false,
+  "nodeModulesDir": "auto"
 }
