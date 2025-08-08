@@ -356,10 +356,24 @@ export class DenoKvSaver extends BaseCheckpointSaver {
         `The provided config must contain a configurable field with a "thread_id" field.`,
       );
     }
+
+    // If newVersions are provided, only persist channel_values that correspond
+    // to channels whose versions changed. This mirrors the behavior in the
+    // Postgres implementation and satisfies the validator expectations.
+    const newVersionKeys = Object.keys(_newVersions ?? {});
+    const checkpointToStore: Checkpoint = {
+      ...checkpoint,
+      channel_values: Object.fromEntries(
+        Object.entries(checkpoint.channel_values ?? {}).filter(([key]) =>
+          newVersionKeys.includes(key)
+        ),
+      ),
+    };
+
     const [
       checkpointType,
       serializedCheckpoint,
-    ] = await this.serde.dumpsTyped(checkpoint);
+    ] = await this.serde.dumpsTyped(checkpointToStore);
     const [metadataType, serializedMetadata] = await this.serde.dumpsTyped(metadata);
     if (checkpointType !== metadataType) {
       throw new Error("Mismatched types for checkpoint and metadata");
