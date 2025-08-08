@@ -5,12 +5,7 @@
  */
 
 import { get, set } from "@kitsonk/kv-toolbox/blob";
-import {
-  BaseCache,
-  deserializeStoredGeneration,
-  getCacheKey,
-  serializeGeneration,
-} from "@langchain/core/caches";
+import { BaseCache, deserializeStoredGeneration, getCacheKey, serializeGeneration } from "@langchain/core/caches";
 import type { StoredGeneration } from "@langchain/core/messages";
 import type { Generation } from "@langchain/core/outputs";
 
@@ -60,9 +55,7 @@ export class DenoKvCache extends BaseCache {
   constructor(options: DenoKvCacheOptions = {}) {
     super();
     const { store, prefix = DEFAULT_PREFIX } = options;
-    this.#storePromise = (!store || typeof store === "string")
-      ? Deno.openKv(store)
-      : Promise.resolve(store);
+    this.#storePromise = (!store || typeof store === "string") ? Deno.openKv(store) : Promise.resolve(store);
     this.#prefix = prefix;
     this.#expireIn = options.expireIn;
   }
