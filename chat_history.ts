@@ -46,9 +46,7 @@ export class DenoKvChatMessageHistory extends BaseListChatMessageHistory {
       expireIn,
     } = options;
     this.#sessionId = sessionId;
-    this.#storePromise = (!store || typeof store === "string")
-      ? Deno.openKv(store)
-      : Promise.resolve(store);
+    this.#storePromise = (!store || typeof store === "string") ? Deno.openKv(store) : Promise.resolve(store);
     this.#prefix = prefix;
     this.#expireIn = expireIn;
   }

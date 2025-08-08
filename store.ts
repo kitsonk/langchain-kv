@@ -48,11 +48,8 @@ export class DenoKvByteStore extends BaseStore<string, Uint8Array> {
 
   constructor(fields: DenoKvStoreFields = {}) {
     super(fields);
-    const { store, prefix = ["__langchain_store__"], expireIn, batchSize } =
-      fields;
-    this.#storePromise = (!store || typeof store === "string")
-      ? Deno.openKv(store)
-      : Promise.resolve(store);
+    const { store, prefix = ["__langchain_store__"], expireIn, batchSize } = fields;
+    this.#storePromise = (!store || typeof store === "string") ? Deno.openKv(store) : Promise.resolve(store);
     this.#prefix = prefix;
     this.#batchSize = batchSize;
     this.#expireIn = expireIn;

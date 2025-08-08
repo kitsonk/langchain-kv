@@ -364,9 +364,7 @@ export class DenoKvSaver extends BaseCheckpointSaver {
     const checkpointToStore: Checkpoint = {
       ...checkpoint,
       channel_values: Object.fromEntries(
-        Object.entries(checkpoint.channel_values ?? {}).filter(([key]) =>
-          newVersionKeys.includes(key)
-        ),
+        Object.entries(checkpoint.channel_values ?? {}).filter(([key]) => newVersionKeys.includes(key)),
       ),
     };
 

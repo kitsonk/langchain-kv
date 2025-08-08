@@ -1,9 +1,5 @@
 import { query } from "@kitsonk/kv-toolbox/query";
-import {
-  type ListKeyOptions,
-  RecordManager,
-  type UpdateOptions,
-} from "@langchain/core/indexing";
+import { type ListKeyOptions, RecordManager, type UpdateOptions } from "@langchain/core/indexing";
 
 interface DenoKvRecordManagerOptions {
   /**
@@ -41,11 +37,8 @@ export class DenoKvRecordManager extends RecordManager {
 
   constructor(options: DenoKvRecordManagerOptions = {}) {
     super();
-    const { store, prefix = ["__langchain_record_manager__"], expireIn } =
-      options;
-    this.#storePromise = (!store || typeof store === "string")
-      ? Deno.openKv(store)
-      : Promise.resolve(store);
+    const { store, prefix = ["__langchain_record_manager__"], expireIn } = options;
+    this.#storePromise = (!store || typeof store === "string") ? Deno.openKv(store) : Promise.resolve(store);
     this.#prefix = prefix;
     this.#expireIn = expireIn;
   }
@@ -65,8 +58,7 @@ export class DenoKvRecordManager extends RecordManager {
   ): Promise<void> {
     const store = await this.#storePromise;
     const updatedAt = await this.getTime();
-    const { timeAtLeast, groupIds = Array(keys.length).fill(null) } =
-      updateOptions;
+    const { timeAtLeast, groupIds = Array(keys.length).fill(null) } = updateOptions;
 
     if (timeAtLeast && updatedAt < timeAtLeast) {
       throw new Error(
