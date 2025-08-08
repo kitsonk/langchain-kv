@@ -337,8 +337,6 @@ export class DenoKvSaver extends BaseCheckpointSaver {
 
   /**
    * Store a checkpoint.
-   *
-   * @TODO This method should be updated to handle the `newVersions` parameter
    */
   async put(
     config: RunnableConfig,
