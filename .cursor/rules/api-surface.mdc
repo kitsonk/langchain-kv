@@ -1,0 +1,17 @@
+---
+alwaysApply: true
+---
+
+### Public API/export surface
+
+- **Single entry**: [mod.ts](mdc:mod.ts) re-exports `DenoKvCache`, `DenoKvChatMessageHistory`, `DenoKvSaver`,
+  `DenoKvRecordManager`, `DenoKvByteStore`.
+- **Subpath exports**: Managed in [deno.json](mdc:deno.json) under `exports`.
+
+### When adding or changing exports
+
+- Add the new class/function in its dedicated `*.ts` file.
+- Re-export from [mod.ts](mdc:mod.ts).
+- If introducing a new subpath import, add it to `exports` in [deno.json](mdc:deno.json).
+- Avoid breaking existing export names or moving files without updating both `mod.ts` and `deno.json`.
+- Update [README.md](mdc:README.md) with a brief capability note if the public surface grows.

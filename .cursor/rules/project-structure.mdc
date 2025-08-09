@@ -1,0 +1,33 @@
+---
+alwaysApply: true
+---
+
+### Project map
+
+- **Entry point**: [mod.ts](mdc:mod.ts) re-exports public classes from per-feature files.
+- **Exports map** (see [deno.json](mdc:deno.json)):
+  - `"."` → [mod.ts](mdc:mod.ts)
+  - `"./cache"` → [cache.ts](mdc:cache.ts)
+  - `"./chat-history"` → [chat_history.ts](mdc:chat_history.ts)
+  - `"./checkpoint"` → [checkpoint.ts](mdc:checkpoint.ts)
+  - `"./record-manager"` → [record_manager.ts](mdc:record_manager.ts)
+  - `"./store"` → [store.ts](mdc:store.ts)
+- **Capabilities** (see [README.md](mdc:README.md)):
+  - `DenoKvSaver` (LangGraph checkpoints)
+  - `DenoKvCache` (LangChain cache)
+  - `DenoKvChatMessageHistory` (message history)
+  - `DenoKvRecordManager` (record manager)
+  - `DenoKvByteStore` (byte store)
+
+### Quick navigation
+
+- Checkpoint saver: [checkpoint.ts](mdc:checkpoint.ts)
+- Cache: [cache.ts](mdc:cache.ts)
+- Chat history: [chat_history.ts](mdc:chat_history.ts)
+- Record manager: [record_manager.ts](mdc:record_manager.ts)
+- Byte/Blob store: [store.ts](mdc:store.ts)
+
+### Usage tips
+
+- Most classes accept `store?: Deno.Kv | string` where `":memory:"` provides an in-memory KV for tests/examples.
+- Prefer importing from the package surface ([mod.ts](mdc:mod.ts)) or subpath exports (per [deno.json](mdc:deno.json)).

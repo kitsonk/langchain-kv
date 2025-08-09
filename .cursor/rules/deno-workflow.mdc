@@ -1,0 +1,27 @@
+---
+alwaysApply: true
+---
+
+### Deno tasks and testing
+
+- **Tasks** (see [deno.json](mdc:deno.json)):
+  - `deno task check`: `deno fmt --check && deno lint && deno publish --dry-run --allow-dirty && deno check --doc *.ts`
+  - `deno task test`: `deno test --allow-read --allow-write --allow-env --unstable-kv --parallel`
+  - `deno task test:ci`:
+    `deno test --allow-read --allow-write --allow-env --unstable-kv --junit-path=junit.xml --coverage=./cov --parallel`
+  - `deno task coverage`: `deno coverage --lcov --output=cov.lcov ./cov`
+
+- **Testing notes**:
+  - Tests rely on [\_test_globals.ts](mdc:_test_globals.ts) which polyfills Jest globals (`describe`, `it`, `expect`)
+    using Deno std libs.
+  - Use `store: ":memory:"` for ephemeral KV during tests and examples.
+  - Tests require `--unstable-kv` and file/env permissions (see tasks above).
+
+- **Formatting & lint**:
+  - Formatter line width is 120 (see `fmt.lineWidth` in [deno.json](mdc:deno.json)).
+  - Run `deno task check` before committing to ensure fmt, lint, typecheck, and publish dry-run all pass.
+  - Run `deno fmt` to ensure that formatting is correct before any commit.
+
+- **Imports/resolution**:
+  - Uses `jsr:` and `npm:` specifiers; `nodeModulesDir` is `auto`.
+  - Library is published via `deno.json` exports; keep exports in sync with [mod.ts](mdc:mod.ts).
