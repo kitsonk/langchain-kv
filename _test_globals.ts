@@ -1,3 +1,4 @@
+// deno-lint-ignore-file no-import-prefix
 /**
  * This polyfills the global functions and properties for Jest
  * to ensure that the tests run correctly in a Deno environment.
@@ -5,9 +6,9 @@
  * @module
  */
 
-import { afterAll, afterEach, beforeAll, beforeEach, describe, it } from "jsr:@std/testing@^1.0.15/bdd";
-import { expect } from "jsr:@std/expect@^1.0.16";
-import { bind as bindEach } from "npm:jest-each@^30.0.5";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, it } from "jsr:@std/testing@^1.0.16/bdd";
+import { expect } from "jsr:@std/expect@^1.0.17";
+import { bind as bindEach } from "npm:jest-each@^30.2.0";
 
 function getDescriptor(value: unknown) {
   return {

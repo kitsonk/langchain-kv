@@ -1,6 +1,7 @@
+// deno-lint-ignore-file no-import-prefix
 import "./_test_globals.ts"; // This is needed to provide Jest globals in Deno
 
-import { validate } from "npm:@langchain/langgraph-checkpoint-validation@^0.1.0";
+import { validate } from "npm:@langchain/langgraph-checkpoint-validation@^0.1.1";
 import { assert } from "jsr:@std/assert@~1/assert";
 import { assertEquals } from "jsr:@std/assert@~1/equals";
 

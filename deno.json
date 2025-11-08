@@ -1,6 +1,6 @@
 {
   "name": "@kitsonk/langchain-kv",
-  "version": "0.4.0",
+  "version": "0.4.1-beta.0",
   "exports": {
     ".": "./mod.ts",
     "./cache": "./cache.ts",
@@ -11,8 +11,8 @@
   },
   "imports": {
     "@kitsonk/kv-toolbox": "jsr:@kitsonk/kv-toolbox@^0.30.0",
-    "@langchain/core": "npm:@langchain/core@^0.3.55",
-    "@langchain/langgraph-checkpoint": "npm:@langchain/langgraph-checkpoint@^0.1.0",
+    "@langchain/core": "npm:@langchain/core@^1.0.2",
+    "@langchain/langgraph-checkpoint": "npm:@langchain/langgraph-checkpoint@^1.0.0",
     "zod": "npm:zod@^4.0.14"
   },
   "publish": {

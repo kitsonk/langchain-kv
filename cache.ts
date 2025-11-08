@@ -5,7 +5,7 @@
  */
 
 import { get, set } from "@kitsonk/kv-toolbox/blob";
-import { BaseCache, deserializeStoredGeneration, getCacheKey, serializeGeneration } from "@langchain/core/caches";
+import { BaseCache, deserializeStoredGeneration, serializeGeneration } from "@langchain/core/caches";
 import type { StoredGeneration } from "@langchain/core/messages";
 import type { Generation } from "@langchain/core/outputs";
 
@@ -65,7 +65,7 @@ export class DenoKvCache extends BaseCache {
     llmKey: string,
   ): Promise<Generation[] | null> {
     let idx = 0;
-    let key = getCacheKey(prompt, llmKey, String(idx));
+    let key = this.keyEncoder(prompt, llmKey, String(idx));
     const store = await this.#storePromise;
     let value = await get(store, [...this.#prefix, key]);
     const generations: Generation[] = [];
@@ -73,7 +73,7 @@ export class DenoKvCache extends BaseCache {
     while (value.value) {
       generations.push(deserializeStoredGeneration(fromBytes(value.value)));
       idx += 1;
-      key = getCacheKey(prompt, llmKey, String(idx));
+      key = this.keyEncoder(prompt, llmKey, String(idx));
       value = await get(store, [...this.#prefix, key]);
     }
 
@@ -83,7 +83,7 @@ export class DenoKvCache extends BaseCache {
   override async update(prompt: string, llmKey: string, value: Generation[]) {
     const store = await this.#storePromise;
     for (let i = 0; i < value.length; i += 1) {
-      const key = getCacheKey(prompt, llmKey, String(i));
+      const key = this.keyEncoder(prompt, llmKey, String(i));
       await set(
         store,
         [...this.#prefix, key],
