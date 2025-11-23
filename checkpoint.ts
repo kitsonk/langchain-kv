@@ -17,10 +17,8 @@ import {
   type CheckpointMetadata,
   type CheckpointPendingWrite,
   type CheckpointTuple,
-  copyCheckpoint,
   type PendingWrite,
   type SerializerProtocol,
-  uuid6,
 } from "@langchain/langgraph-checkpoint";
 
 /**
@@ -104,14 +102,6 @@ export class DenoKvSaver extends BaseCheckpointSaver {
   #writesPrefix: Deno.KvKey;
   #expireIn?: number;
 
-  #dumpCheckpoint(checkpoint: Checkpoint) {
-    const serialized: Record<string, unknown> = { ...checkpoint };
-    if ("channel_values" in serialized) {
-      delete serialized.channel_values;
-    }
-    return serialized;
-  }
-
   async #getPendingWrites(
     thread_id: Deno.KvKeyPart,
     checkpoint_ns: Deno.KvKeyPart,
@@ -192,11 +182,9 @@ export class DenoKvSaver extends BaseCheckpointSaver {
       checkpoint_ns = "",
       checkpoint_id,
     } = config.configurable ?? {};
-
     if (!thread_id) {
       return undefined;
     }
-
     const entry = await this.#getStoredCheckpointEntry(
       thread_id,
       checkpoint_ns,
@@ -349,55 +337,29 @@ export class DenoKvSaver extends BaseCheckpointSaver {
 
   /**
    * Store a checkpoint.
+   *
+   * @TODO This method should be updated to handle the `newVersions` parameter
    */
   async put(
     config: RunnableConfig,
     checkpoint: Checkpoint,
     metadata: CheckpointMetadata,
-    newVersions: ChannelVersions,
+    _newVersions: ChannelVersions,
   ): Promise<RunnableConfig> {
-    if (!config.configurable) {
-      throw new Error(`Missing "configurable" field in "config" param`);
-    }
     const {
       thread_id,
       checkpoint_ns = "",
-      checkpoint_id: parent_checkpoint_id,
-    } = config.configurable;
-
+    } = config.configurable ?? {};
+    const checkpoint_id = checkpoint.id;
     if (!thread_id) {
-      throw new Error("thread_id is required");
+      throw new Error(
+        `The provided config must contain a configurable field with a "thread_id" field.`,
+      );
     }
-
-    const checkpoint_id = checkpoint.id || uuid6(0);
-    const key = [...this.#prefix, thread_id, checkpoint_ns, checkpoint_id];
-
-    // Copy checkpoint and filter channel_values to only include changed channels
-    const storedCheckpoint = copyCheckpoint(checkpoint);
-
-    // If newVersions is provided and has keys, only store those channels that changed
-    // If newVersions is empty {}, store no channel values
-    // If newVersions is not provided (undefined), keep all channel_values as-is
-    if (storedCheckpoint.channel_values && newVersions !== undefined) {
-      if (Object.keys(newVersions).length === 0) {
-        // Empty newVersions means no channels changed - store empty channel_values
-        storedCheckpoint.channel_values = {};
-      } else {
-        // Only store the channels that are in newVersions
-        const filteredChannelValues: Record<string, unknown> = {};
-        for (const channel of Object.keys(newVersions)) {
-          if (channel in storedCheckpoint.channel_values) {
-            filteredChannelValues[channel] = storedCheckpoint.channel_values[channel];
-          }
-        }
-        storedCheckpoint.channel_values = filteredChannelValues;
-      }
-    }
-
     const [
       checkpointType,
       serializedCheckpoint,
-    ] = await this.serde.dumpsTyped(storedCheckpoint);
+    ] = await this.serde.dumpsTyped(checkpoint);
     const [metadataType, serializedMetadata] = await this.serde.dumpsTyped(metadata);
     if (checkpointType !== metadataType) {
       throw new Error("Mismatched types for checkpoint and metadata");
@@ -406,10 +368,11 @@ export class DenoKvSaver extends BaseCheckpointSaver {
       thread_id,
       checkpoint_ns,
       checkpoint_id,
-      parent_checkpoint_id,
+      parent_checkpoint_id: config.configurable?.checkpoint_id,
       type: checkpointType,
     } satisfies StoredCheckpoint;
     const store = await this.#storePromise;
+    const key = [...this.#prefix, thread_id, checkpoint_ns, checkpoint_id];
     const res = await batchedAtomic(store)
       .set(key, value, { expireIn: this.#expireIn })
       .setBlob([...key, CHECKPOINT_KEYPART], serializedCheckpoint, { expireIn: this.#expireIn })
